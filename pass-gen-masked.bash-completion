@@ -1,0 +1,44 @@
+# bash completion for `pass gen-masked`
+#
+# Hooks into pass's own bash completion through its extension interface
+# (PASSWORD_STORE_EXTENSION_COMMANDS and __password_store_extension_complete_*),
+# so the `pass` completion must be installed too.
+
+PASSWORD_STORE_EXTENSION_COMMANDS+=(gen-masked)
+
+__password_store_extension_complete_gen-masked() {
+	local cur="${COMP_WORDS[COMP_CWORD]}"
+	local prev="${COMP_WORDS[COMP_CWORD-1]}"
+	local opts="-c --clip -f --force -d --domain -v --version -h --help"
+
+	# The value of --domain is free text.
+	case "$prev" in
+		-d|--domain) return 0 ;;
+	esac
+
+	if [[ $cur == -* ]]; then
+		COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+		return 0
+	fi
+
+	# Count positional arguments between `gen-masked` and the cursor,
+	# skipping options and the value that follows -d / --domain.
+	local i w n=0 skip=0
+	for ((i = 2; i < COMP_CWORD; i++)); do
+		w="${COMP_WORDS[i]}"
+		if ((skip)); then
+			skip=0
+			continue
+		fi
+		case "$w" in
+			-d|--domain|-[!-]*d) skip=1 ;;
+			-*) ;;
+			*) n=$((n + 1)) ;;
+		esac
+	done
+
+	# First positional is the pass entry; the description is free text.
+	if ((n == 0)); then
+		_pass_complete_entries 1
+	fi
+}

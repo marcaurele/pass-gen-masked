@@ -2,6 +2,8 @@
 
 A [pass / passwordstore](https://www.passwordstore.org/) extension to generate a Fastmail Masked email address and store it directly in your password store.
 
+*Because you should never give out your personal email to online websites.*
+
 ## Requirements
 
 - `curl`
@@ -19,6 +21,20 @@ Create an API token under Settings → Privacy & Security → Integrations with 
 ### Key used to store the masked email
 
 `PASS_FASTMAIL_MASKED_KEY`: sets the stored key and default to `email`. In case you are using [passforios](https://github.com/mssun/passforios/wiki#use-the-pass-extension-to-fill-in-safari-and-apps), it's recommended to change it to `username` or `login`.
+
+### Shell completion
+
+For Bash:
+
+```shell
+cp pass-gen-masked.bash-completion ~/.bash_completion   # or append it if you already have one
+```
+
+For Fish:
+
+```shell
+cp pass-gen-masked.fish ~/.config/fish/conf.d/pass-gen-masked.fish
+```
 
 ## Usage
 

@@ -12,36 +12,54 @@
 #                              (default: fastmail/masked-email-token, first line)
 #   PASS_FASTMAIL_SESSION_URL  JMAP session URL
 #                              (default: https://api.fastmail.com/jmap/session)
+#   PASS_FASTMAIL_MASKED_KEY   key under which the address is stored in the
+#                              entry (default: email), e.g. "username"
 #
 # The token needs the "Masked Email" scope:
 #   Fastmail > Settings > Privacy & Security > Integrations > API tokens
 
+readonly GEN_MASKED_VERSION="0.2.0"
 readonly FM_CAP_CORE="urn:ietf:params:jmap:core"
 readonly FM_CAP_MASKED="https://www.fastmail.com/dev/maskedemail"
 
+cmd_gen_masked_version() {
+	echo "pass-gen-masked $GEN_MASKED_VERSION"
+}
+
 cmd_gen_masked_usage() {
+	local key="${PASS_FASTMAIL_MASKED_KEY:-email}"
 	cat <<-_EOF
 	Usage:
-	    $PROGRAM gen-masked [--force,-f] [--domain,-d domain] pass-name description
+	    $PROGRAM gen-masked [--clip,-c] [--force,-f] [--domain,-d domain] pass-name description
 	        Create a new Fastmail masked email with the given description and
-	        store it as an "email: <address>" line in pass-name. If pass-name
-	        already exists, the line is appended to it; if it already has an
-	        email line, --force is required to replace it.
+	        store it as a "$key: <address>" line in pass-name.
 
+	        A new (or empty) entry gets an empty first line and the address on
+	        the second line. If pass-name already has content, the line is
+	        appended to it; if it already has a "$key:" line, --force is
+	        required to replace it.
+
+	        --clip,-c    Copy the address to the clipboard instead of printing it
 	        --domain,-d  Also set the masked email's "for domain" field
-	        --force,-f   Replace an existing email line without asking
+	        --force,-f   Replace an existing "$key:" line without asking
+	        --version,-v Show the version of this extension
+
+	Environment:
+	    PASS_FASTMAIL_MASKED_KEY   Key used in the entry (default: email)
 	_EOF
 }
 
 cmd_gen_masked() {
-	local opts force=0 domain=""
-	opts="$($GETOPT -o fd:h -l force,domain:,help -n "$PROGRAM" -- "$@")"
+	local opts force=0 clip_out=0 domain=""
+	opts="$($GETOPT -o cfd:vh -l clip,force,domain:,version,help -n "$PROGRAM" -- "$@")"
 	local err=$?
 	eval set -- "$opts"
 	while true; do
 		case $1 in
+			-c|--clip) clip_out=1; shift ;;
 			-f|--force) force=1; shift ;;
 			-d|--domain) domain="$2"; shift 2 ;;
+			-v|--version) cmd_gen_masked_version; return 0 ;;
 			-h|--help) cmd_gen_masked_usage; return 0 ;;
 			--) shift; break ;;
 		esac
@@ -55,6 +73,9 @@ cmd_gen_masked() {
 	command -v curl >/dev/null || die "Error: curl is required."
 	command -v jq >/dev/null || die "Error: jq is required."
 
+	local key="${PASS_FASTMAIL_MASKED_KEY:-email}"
+	[[ $key == *$'\n'* || $key == *:* ]] && die "Error: PASS_FASTMAIL_MASKED_KEY must not contain ':' or newlines."
+
 	local path="${1%/}" description="$2"
 	check_sneaky_paths "$path"
 	local passfile="$PREFIX/$path.gpg"
@@ -63,14 +84,14 @@ cmd_gen_masked() {
 	set_git "$passfile"
 
 	# Fail early if we would have to overwrite something and weren't allowed to.
-	local existing="" has_email=0
+	local existing="" has_key=0
 	if [[ -f $passfile ]]; then
 		existing="$($GPG -d "${GPG_OPTS[@]}" "$passfile")" || exit $?
-		if grep -q '^email:' <<<"$existing"; then
-			has_email=1
+		if awk -v p="$key:" 'index($0, p) == 1 { f = 1 } END { exit !f }' <<<"$existing"; then
+			has_key=1
 			if [[ $force -eq 0 ]]; then
-				[[ -t 0 ]] || die "Error: $path already has an email line. Use --force to replace it."
-				yesno "An email line already exists in $path. Replace it?"
+				[[ -t 0 ]] || die "Error: $path already has a '$key:' line. Use --force to replace it."
+				yesno "A '$key:' line already exists in $path. Replace it?"
 			fi
 		fi
 	fi
@@ -130,13 +151,15 @@ cmd_gen_masked() {
 	[[ $email == ERR:* ]] && die "Error: Fastmail refused to create the masked email: ${email#ERR:}"
 
 	# --- Store it ----------------------------------------------------------
-	local content
-	if [[ -n $existing ]]; then
-		content="$existing"
-		[[ $has_email -eq 1 ]] && content="$(grep -v '^email:' <<<"$existing")"
-		content+=$'\n'"email: $email"
+	local line="$key: $email" content
+	if [[ -z ${existing//[[:space:]]/} ]]; then
+		# New or empty entry: empty first line, address on the second.
+		content=$'\n'"$line"
+	elif [[ $has_key -eq 1 ]]; then
+		# Replace the existing line in place.
+		content="$(awk -v p="$key:" -v l="$line" 'index($0, p) == 1 { print l; next } { print }' <<<"$existing")"
 	else
-		content=$'\n'"email: $email"
+		content="$existing"$'\n'"$line"
 	fi
 
 	mkdir -p -- "$PREFIX/$(dirname -- "$path")"
@@ -145,11 +168,16 @@ cmd_gen_masked() {
 		|| die "Error: could not encrypt $path."
 	git_add_file "$passfile" "Add masked email for $path (${description})."
 
-	echo "$email"
+	if [[ $clip_out -eq 1 ]]; then
+		clip "$email" "masked email for $path"
+	else
+		echo "$email"
+	fi
 }
 
 case "$1" in
-	help|--help|-h) shift; cmd_gen_masked_usage "$@" ;;
-	*)              cmd_gen_masked "$@" ;;
+	version|--version|-v) cmd_gen_masked_version ;;
+	help|--help|-h)       shift; cmd_gen_masked_usage "$@" ;;
+	*)                    cmd_gen_masked "$@" ;;
 esac
 exit 0

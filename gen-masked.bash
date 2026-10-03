@@ -18,7 +18,7 @@
 # The token needs the "Masked Email" scope:
 #   Fastmail > Settings > Privacy & Security > Integrations > API tokens
 
-readonly GEN_MASKED_VERSION="0.2.0"
+readonly GEN_MASKED_VERSION="1.0.0"
 readonly FM_CAP_CORE="urn:ietf:params:jmap:core"
 readonly FM_CAP_MASKED="https://www.fastmail.com/dev/maskedemail"
 

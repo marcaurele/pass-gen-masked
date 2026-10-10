@@ -9,6 +9,12 @@ A [pass / passwordstore](https://www.passwordstore.org/) extension to generate a
 - `curl`
 - `jq`
 
+## Installation
+
+From [`pass`](https://www.passwordstore.org/) documentation:
+
+> In order to faciliate the large variety of uses users come up with, pass supports extensions. Extensions installed to `/usr/lib/password-store/extensions` (or some distro-specific variety of such) are always enabled. Extensions installed to `~/.password-store/.extensions/COMMAND.bash` are enabled if the `PASSWORD_STORE_ENABLE_EXTENSIONS` environment variable is `true` Read the man page for more details.
+
 ## Configuration
 
 ### Fastmail API token
